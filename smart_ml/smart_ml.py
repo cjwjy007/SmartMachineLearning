@@ -40,7 +40,7 @@ class Stdin:
         return x
 
 
-class AutoML:
+class SmartML:
     handle_missing_value_str = """
             选择缺失值处理方式
             0:自定义填充缺失值
@@ -350,5 +350,5 @@ if __name__ == '__main__':
     train_df = pd.read_csv("/Users/wei/PycharmProjects/MachineLearning/Loan/loan.csv")
 
     # initial autoML
-    autoML = AutoML(train_df=train_df)
-    autoML.auto_learn()
+    smart_ml = SmartML(train_df=train_df)
+    smart_ml.auto_learn()
