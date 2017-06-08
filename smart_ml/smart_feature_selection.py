@@ -1,11 +1,12 @@
 from sklearn.model_selection import train_test_split
+from sklearn.tree import ExtraTreeClassifier
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import SelectFromModel
 from sklearn.feature_selection import SelectKBest
 from sklearn.metrics import auc
 from sklearn import cluster
-
+from xgboost import XGBClassifier
 from smart_ml.smart_ml_general import *
 import pandas as pd
 
@@ -26,8 +27,8 @@ class SmartFeatureSelection:
         ]
         selector_map = {
             selector_list[0]: SelectKBest(k=7),
-            selector_list[1]: SelectFromModel(RandomForestClassifier(n_jobs=-1, max_depth=10, n_estimators=15),
-                                              threshold='20*mean'),
+            selector_list[1]: SelectFromModel(RandomForestClassifier(n_jobs=-1, max_depth=10, n_estimators=15),),
+                                              # threshold='10*mean'),
             selector_list[2]: SelectKBest(k=7)
             # todo
         }

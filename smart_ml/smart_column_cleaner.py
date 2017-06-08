@@ -1,9 +1,9 @@
-import numpy as np
 from smart_ml.smart_ml_general import *
 
 
 class SmartColumnCleaner:
-    def __init__(self, train_df=None):
+    def __init__(self, train_df=None, pipeline=None):
+        self.pipeline = pipeline
         self.train_df = train_df
 
     def clean_columns(self):
@@ -19,6 +19,7 @@ class SmartColumnCleaner:
                     cols_to_remove.append(col)
 
         self.train_df.drop(cols_to_remove, axis=1, inplace=True)
+        self.pipeline.append([cols_to_remove, 0])
 
     def _clean_constant_columns(self):
         cols_to_remove = []
@@ -30,6 +31,7 @@ class SmartColumnCleaner:
                     cols_to_remove.append(columns[j])
 
         self.train_df.drop(cols_to_remove, axis=1, inplace=True)
+        self.pipeline.append([cols_to_remove, 0])
 
     def _clean_high_missing_rate_columns(self):
         cols_to_remove = []
@@ -40,6 +42,7 @@ class SmartColumnCleaner:
                 cols_to_remove.append(col_notnull.name)
 
         self.train_df.drop(cols_to_remove, axis=1, inplace=True)
+        self.pipeline.append([cols_to_remove, 0])
 
     def clean_values_almost_different_columns(self):
         cols_to_remove = []
@@ -51,3 +54,4 @@ class SmartColumnCleaner:
                 cols_to_remove.append(col_notnull.name)
 
         self.train_df.drop(cols_to_remove, axis=1, inplace=True)
+        self.pipeline.append([cols_to_remove, 0])

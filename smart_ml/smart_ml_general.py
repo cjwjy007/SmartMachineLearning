@@ -1,4 +1,6 @@
 import numpy as np
+import sys
+from io import StringIO
 
 
 def is_categorical_data(dtype):
@@ -6,10 +8,6 @@ def is_categorical_data(dtype):
         return True
     else:
         return False
-
-
-import sys
-from io import StringIO
 
 
 class Stdin:

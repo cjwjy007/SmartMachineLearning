@@ -3,16 +3,19 @@ from smart_ml.smart_value_filler import *
 from smart_ml.smart_data_encoder import *
 from smart_ml.smart_feature_selection import *
 from smart_ml.smart_trainer import *
+from smart_ml.smart_transformer import *
 
 pd.options.mode.chained_assignment = None
 
 
 class SmartML:
-    def __init__(self, train_df=None, preprocessed_df=None):
+    def __init__(self, train_df=None, preprocessed_df=None, test_df=None):
         self.train_df = train_df
         self.preprocessed_df = preprocessed_df
+        self.test_df = test_df
+        self.smart_pipeline = []
 
-    def auto_learn(self, ):
+    def auto_learn(self):
         if self.preprocessed_df is None:
             # columns info
             columns_list = self.train_df.columns.values.tolist()
@@ -22,19 +25,19 @@ class SmartML:
             y_index = self.pick_y(columns_list)
 
             # preprocess Y
-            self.data_y_preprocessing(train_columns=self.train_df, y_index=y_index, is_auto=True)
+            self.data_y_preprocessing(train_columns=self.train_df, pre_column=self.train_df.iloc[:, y_index],
+                                      is_auto=True)
 
             # extract Y column
             preprocessed_y = self.train_df.iloc[:, y_index]
             self.train_df.drop(self.train_df.columns[y_index], axis=1, inplace=True)
 
-            # self.auc(trainFeatures=train_df,trainLabels=preprocessed_y)
             # preprocess X
             preprocessed_x = self.data_x_preprocessing(train_columns=self.train_df, pre_column=preprocessed_y,
                                                        is_auto=True)
 
             # save the Dataframe as csv
-            pd.concat([preprocessed_y, preprocessed_x], axis=1).to_csv("preprocessed_df.csv")
+            pd.concat([preprocessed_y, preprocessed_x], axis=1).to_csv("preprocessed_df.csv", index=False)
         else:
             # get x and y
             preprocessed_y = self.preprocessed_df.iloc[:, 0]
@@ -42,34 +45,22 @@ class SmartML:
 
         # train data
         smart_trainer = SmartTrainer(train_x=preprocessed_x, train_y=preprocessed_y, is_auto=False)
-        best_model_name, best_model, best_score = smart_trainer.select_best_model()
-        print("best_model_name: " + best_model_name)
-        print("best_score： " + str(best_score))
+        best_model_name, best_model = smart_trainer.select_best_model()
 
-    def data_y_preprocessing(self, train_columns, y_index, is_auto):
-        self.transform_y(train_df=train_columns, index_y=y_index)
-        self.data_encoding_y(train_df=train_columns, index_y=y_index)
+        if self.test_df is not None:
+            # transform test set
+            preprocessed_test_x = self.transform_test(preprocessed_x.columns)
+            # predict test set
+            y_pre = best_model.predict(preprocessed_test_x)
+            submission = pd.DataFrame({
+                self.test_df.columns[0]: self.test_df[self.test_df.columns[0]],
+                preprocessed_y.name: y_pre
+            })
+            submission.to_csv('submission.csv', index=False)
 
-    def transform_y(self, train_df, index_y):
-        column_y = train_df.iloc[:, index_y]
-        if is_categorical_data(column_y.dtype):
-            values_y = column_y.value_counts()
-            column_y_map = {}
-            for idx, val in enumerate(values_y):
-                x = Stdin.get_int_input("map " + str(values_y.index[idx]) + " to(if input -1,delete column):")
-                if x == -1:
-                    column_y_map[values_y.index[idx]] = np.nan
-                else:
-                    column_y_map[values_y.index[idx]] = x
-            train_df.iloc[:, index_y] = column_y.map(column_y_map)
-        train_df.dropna(subset=[column_y.name], inplace=True)
-        train_df.index = range(len(train_df))
-
-    def data_encoding_y(self, train_df, index_y):
-        column_y = self.train_df.iloc[:, index_y]
-        if is_categorical_data(column_y.dtype):
-            self.train_df.iloc[:, index_y] = pd.Series(preprocessing.LabelEncoder().fit_transform(column_y),
-                                                       name=column_y.name)
+    def data_y_preprocessing(self, train_columns, pre_column, is_auto):
+        smart_transformer = SmartTransformer(train_df=train_columns, train_y=pre_column, is_auto=is_auto)
+        smart_transformer.transform_y()
 
     def data_x_preprocessing(self, train_columns, pre_column, is_auto):
         self._feature_pre_selection_x(train_columns)
@@ -79,20 +70,32 @@ class SmartML:
         return train_columns
 
     def _feature_pre_selection_x(self, train_columns):
-        smart_cleaner = SmartColumnCleaner(train_df=train_columns)
+        smart_cleaner = SmartColumnCleaner(train_df=train_columns, pipeline=self.smart_pipeline)
         smart_cleaner.clean_columns()
 
     def _fill_missing_x(self, train_columns, is_auto):
-        smart_value_filler = SmartValueFiller(train_df=train_columns, is_auto=is_auto)
-        smart_value_filler.value_filling()
+        smart_value_filler = SmartValueFiller(train_df=train_columns, is_auto=is_auto, pipeline=self.smart_pipeline)
+        smart_value_filler.filling_value()
 
     def _data_encoding_x(self, train_columns, is_auto):
-        smart_encoder = SmartDataEncoder(train_df=train_columns, is_auto=is_auto)
+        smart_encoder = SmartDataEncoder(train_df=train_columns, is_auto=is_auto, pipeline=self.smart_pipeline)
         return smart_encoder.data_encode()
 
     def _feature_selection_x(self, train_columns, pre_column, is_auto):
         smart_feature_selection = SmartFeatureSelection(train_x=train_columns, train_y=pre_column, is_auto=is_auto)
         return smart_feature_selection.feature_selection()
+
+    def transform_test(self, train_column=None):
+        self._feature_pre_selection_x(self.test_df)
+        self._fill_missing_x(self.test_df, True)
+        test_df = self._data_encoding_x(self.test_df, True)
+        for idx,val in enumerate(train_column):
+            if val not in test_df.columns:
+                new_se = pd.Series(name=val)
+                test_df = pd.concat([test_df,new_se],axis=1)
+                test_df[val] = 0
+        test_df = test_df[train_column]
+        return test_df
 
     def print_columns(self, cols_list):
         for idx, val in enumerate(cols_list):
@@ -116,11 +119,13 @@ if __name__ == '__main__':
 
     # read data
     # satisfaction df
-    # train_df = pd.read_csv("/Users/wei/Downloads/train.csv")
+    # t_df = pd.read_csv("/Users/wei/Downloads/train.csv")
+    # te_df = pd.read_csv("/Users/wei/Downloads/test.csv")
     # titanic df
     t_df = pd.read_csv("/Users/wei/PycharmProjects/MachineLearning/Titanic/train.csv")
-    p_df = pd.read_csv("loan_preprocessed_df.csv")
+    te_df = pd.read_csv("/Users/wei/Downloads/titanic_test.csv")
+    # p_df = pd.read_csv("preprocessed_df.csv")
 
     # initial SmartML
-    smart_ml = SmartML(train_df=t_df, preprocessed_df=None)
+    smart_ml = SmartML(train_df=t_df, preprocessed_df=None, test_df=te_df)
     smart_ml.auto_learn()
